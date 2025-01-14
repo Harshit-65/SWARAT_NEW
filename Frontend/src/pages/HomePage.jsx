@@ -1,13 +1,13 @@
 import React from "react";
-import { ArrowRight, MapPin, Camera, MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import FeatureCard from "../components/FeatureCard";
+import { ArrowRight, Camera, MapPin, MessageCircle } from "lucide-react";
+import FeatureCard from "../components/FeatureCard"; // Assuming FeatureCard is in your components folder
 
 const HomePage = () => {
   const navigate = useNavigate();
 
   const handleGetStarted = () => {
-    navigate("/auth");
+    navigate("/auth"); // Navigate to your authentication page
   };
 
   return (

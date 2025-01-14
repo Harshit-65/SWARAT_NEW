@@ -1,140 +1,172 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Mail, Lock, User } from "lucide-react";
+import { AuthContext } from "../context/authContext";
 
-const AuthPage = ({ onAuthSuccess }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [loginMethod, setLoginMethod] = useState("email");
+import React, { useState, useContext } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { auth } from "../services/authService"; // Adjust path if needed
+
+const AuthPage = () => {
   const navigate = useNavigate();
+  const { handleLogin } = useContext(AuthContext);
 
-  const handleSubmit = (e) => {
+  const [isLogin, setIsLogin] = useState(true); // Start with login view
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "", // Only used for registration
+  });
+  const [error, setError] = useState(null);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onAuthSuccess();
-    navigate("/feed");
+    setError(null); // Clear previous errors
+
+    try {
+      let response;
+      if (isLogin) {
+        // Login logic
+        response = await auth.login(formData.email, formData.password);
+      } else {
+        // Registration logic
+        // Add validation (e.g., password match) before sending to the backend
+        if (formData.password !== formData.confirmPassword) {
+          setError("Passwords do not match");
+          return;
+        }
+        response = await auth.register(formData);
+      }
+
+      if (response.success) {
+        handleLogin(response.user); // Assuming your API sends back user data and token
+        navigate("/feed"); // Redirect to feed after successful login/registration
+      } else {
+        setError(response.message || "An error occurred"); // Display error message from backend
+      }
+    } catch (error) {
+      console.error("Error during authentication:", error);
+      setError("An error occurred. Please try again later.");
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-        <h2 className="text-2xl font-bold mb-6">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+        <h2 className="text-2xl font-bold mb-5 text-center">
           {isLogin ? "Login" : "Sign Up"}
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Username field for signup */}
-          {!isLogin && (
-            <div className="relative">
-              <User className="absolute top-3 left-3 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Username"
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-green-500"
-                required
-              />
-            </div>
-          )}
 
-          {/* Login method toggle */}
-          {isLogin && (
-            <div className="flex space-x-4 mb-4">
-              <button
-                type="button"
-                onClick={() => setLoginMethod("email")}
-                className={`px-4 py-2 rounded ${
-                  loginMethod === "email"
-                    ? "bg-green-600 text-white"
-                    : "bg-gray-200"
-                }`}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginMethod("username")}
-                className={`px-4 py-2 rounded ${
-                  loginMethod === "username"
-                    ? "bg-green-600 text-white"
-                    : "bg-gray-200"
-                }`}
+        {error && <div className="text-red-500 text-center mb-4">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label
+                htmlFor="username"
+                className="block text-gray-700 font-bold mb-2"
               >
                 Username
-              </button>
-            </div>
-          )}
-
-          {/* Login input field based on method */}
-          {isLogin && (
-            <div className="relative">
-              {loginMethod === "email" ? (
-                <Mail
-                  className="absolute top-3 left-3 text-gray-400"
-                  size={20}
-                />
-              ) : (
-                <User
-                  className="absolute top-3 left-3 text-gray-400"
-                  size={20}
-                />
-              )}
+              </label>
               <input
-                type={loginMethod === "email" ? "email" : "text"}
-                placeholder={loginMethod === "email" ? "Email" : "Username"}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-green-500"
+                type="text"
+                id="username"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 required
               />
             </div>
           )}
-
-          {/* Email field for signup */}
-          {!isLogin && (
-            <div className="relative">
-              <Mail className="absolute top-3 left-3 text-gray-400" size={20} />
-              <input
-                type="email"
-                placeholder="Email"
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-green-500"
-                required
-              />
-            </div>
-          )}
-
-          {/* Password fields */}
-          <div className="relative">
-            <Lock className="absolute top-3 left-3 text-gray-400" size={20} />
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-gray-700 font-bold mb-2"
+            >
+              Email
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-gray-700 font-bold mb-2"
+            >
+              Password
+            </label>
             <input
               type="password"
-              placeholder="Password"
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-green-500"
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               required
             />
           </div>
           {!isLogin && (
-            <div className="relative">
-              <Lock className="absolute top-3 left-3 text-gray-400" size={20} />
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-gray-700 font-bold mb-2"
+              >
+                Confirm Password
+              </label>
               <input
                 type="password"
-                placeholder="Confirm Password"
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-green-500"
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 required
               />
             </div>
           )}
-
           <button
             type="submit"
-            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
             {isLogin ? "Login" : "Sign Up"}
           </button>
         </form>
-        <p className="text-center mt-4">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-green-600 hover:underline"
-          >
-            {isLogin ? "Sign Up" : "Login"}
-          </button>
-        </p>
+
+        <div className="text-center mt-4">
+          {isLogin ? (
+            <p>
+              Don't have an account?{" "}
+              <Link
+                to="#"
+                onClick={() => setIsLogin(false)}
+                className="text-green-600 hover:underline"
+              >
+                Sign Up
+              </Link>
+            </p>
+          ) : (
+            <p>
+              Already have an account?{" "}
+              <Link
+                to="#"
+                onClick={() => setIsLogin(true)}
+                className="text-green-600 hover:underline"
+              >
+                Login
+              </Link>
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

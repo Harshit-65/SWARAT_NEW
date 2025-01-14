@@ -1,118 +1,174 @@
-import React, { useState } from "react";
-import { Send } from "lucide-react";
+import React, { useState, useEffect, useContext, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
+// import { Alert } from "@/components/ui/alert";
+import { chatService } from "../services/chatService";
+import { AuthContext } from "../context/authContext";
 
 const ChatPage = () => {
-  const [selectedGroup, setSelectedGroup] = useState(null);
+  const { chatId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+  const [activeChat, setActiveChat] = useState(null);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const socket = useRef(null);
+  const messagesEndRef = useRef(null);
 
-  const groups = [
-    {
-      id: 1,
-      name: "Beach Cleanup Squad",
-      messages: [
-        {
-          id: 1,
-          user: "Alex",
-          text: "I'll bring extra bags tomorrow",
-          timestamp: "2:30 PM",
-        },
-        {
-          id: 2,
-          user: "Sarah",
-          text: "Perfect, thanks!",
-          timestamp: "2:31 PM",
-        },
-      ],
-    },
-    {
-      id: 2,
-      name: "Park Volunteers",
-      messages: [
-        {
-          id: 1,
-          user: "Sarah",
-          text: "Great work everyone!",
-          timestamp: "11:45 AM",
-        },
-      ],
-    },
-  ];
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    // Initialize socket connection
+    socket.current = io("http://localhost:5000", {
+      withCredentials: true,
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    // Socket event handlers
+    socket.current.on("connect", () => {
+      // console.log("inside socket connect");
+      if (chatId) {
+        socket.current.emit("joinChat", chatId);
+      }
+    });
+
+    socket.current.on("connect_error", (error) => {
+      console.error("Socket connection error:", error);
+      setError("Unable to connect to chat server");
+    });
+
+    socket.current.on("newMessage", (newMessage) => {
+      setActiveChat((prevChat) => {
+        if (!prevChat) return null;
+        return {
+          ...prevChat,
+          messages: [...prevChat.messages, newMessage],
+        };
+      });
+      scrollToBottom();
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (socket.current) {
+        socket.current.disconnect();
+      }
+    };
+  }, [chatId]);
+
+  useEffect(() => {
+    const fetchChat = async () => {
+      try {
+        if (chatId) {
+          const chatData = await chatService.getChatById(chatId);
+          setActiveChat(chatData);
+          scrollToBottom();
+        }
+      } catch (err) {
+        console.error("Error fetching chat:", err);
+        setError("Failed to load chat");
+      }
+    };
+
+    fetchChat();
+  }, [chatId]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!message.trim()) return;
+
+    try {
+      const messageData = {
+        chatId: chatId,
+        sender: user._id,
+        content: message,
+      };
+
+      socket.current.emit("sendMessage", messageData);
+      setMessage("");
+    } catch (err) {
+      console.error("Error sending message:", err);
+      setError("Failed to send message");
+    }
+  };
+
+  if (error) {
+    return alert(error);
+    // <Alert variant="destructive" className="m-4">
+    //   {error}
+    // </Alert>
+  }
+
+  if (!activeChat) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex h-[calc(100vh-64px)]">
-        {/* Groups List - 30% width */}
-        <div className="w-[30%] bg-white border-r">
-          <div className="p-4 border-b">
-            <h2 className="font-semibold text-xl">Groups</h2>
-          </div>
-          <div className="overflow-y-auto h-[calc(100%-60px)]">
-            {groups.map((group) => (
-              <button
-                key={group.id}
-                onClick={() => setSelectedGroup(group)}
-                className={`w-full p-4 text-left hover:bg-gray-50 border-b ${
-                  selectedGroup?.id === group.id ? "bg-gray-100" : ""
-                }`}
-              >
-                <h3 className="font-medium">{group.name}</h3>
-                <p className="text-sm text-gray-600 truncate mt-1">
-                  <span className="font-medium">
-                    {group.messages[group.messages.length - 1].user}:
-                  </span>{" "}
-                  {group.messages[group.messages.length - 1].text}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Chat Area - 70% width */}
-        <div className="w-[70%] flex flex-col bg-white">
-          {selectedGroup ? (
-            <>
-              <div className="p-4 border-b">
-                <h2 className="font-semibold text-xl">{selectedGroup.name}</h2>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {selectedGroup.messages.map((msg) => (
-                  <div key={msg.id} className="flex flex-col">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-medium">{msg.user}</span>
-                      <span className="text-sm text-gray-500">
-                        {msg.timestamp}
-                      </span>
-                    </div>
-                    <p className="mt-1 bg-gray-50 p-3 rounded-lg inline-block max-w-[80%]">
-                      {msg.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="p-4 border-t">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 p-3 border rounded-lg"
-                  />
-                  <button className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                    <Send size={20} />
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
-              Select a group to start chatting
-            </div>
-          )}
-        </div>
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Chat Header */}
+      <div className="bg-white shadow p-4">
+        <h2 className="text-xl font-semibold">{activeChat.groupName}</h2>
+        <p className="text-sm text-gray-500">
+          {activeChat.members?.length || 0} members
+        </p>
       </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {activeChat.messages?.map((msg, index) => (
+          <div
+            key={index}
+            className={`flex ${
+              msg.sender._id === user._id ? "justify-end" : "justify-start"
+            }`}
+          >
+            <div
+              className={`max-w-[70%] rounded-lg p-3 ${
+                msg.sender._id === user._id
+                  ? "bg-blue-500 text-white"
+                  : "bg-white"
+              }`}
+            >
+              <p className="text-sm font-semibold">
+                {msg.sender.username || "Unknown User"}
+              </p>
+              <p>{msg.content}</p>
+              <p className="text-xs text-gray-300 mt-1">
+                {new Date(msg.timestamp).toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Message Input */}
+      <form onSubmit={handleSendMessage} className="bg-white p-4">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Send
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

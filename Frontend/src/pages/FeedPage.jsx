@@ -1,47 +1,81 @@
-import React, { useState } from "react";
-import Navigation from "../components/Navigation";
+import React, { useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
 import Post from "../components/Post";
 import UploadComponent from "../components/UploadComponent";
-import ProfileComponent from "../components/ProfileComponent";
+import { userService } from "../services/userService";
+import { postService } from "../services/postService";
+import { AuthContext } from "../context/authContext";
+// import { Alert } from "@/components/ui/alert";
 
 const FeedPage = () => {
+  const [posts, setPosts] = useState([]);
   const [showUpload, setShowUpload] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [error, setError] = useState("");
+  const { user } = useContext(AuthContext);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
-  const dummyPosts = [
-    {
-      id: 1,
-      images: ["/api/placeholder/600/400", "/api/placeholder/600/400"],
-      location: "Central Park, New York",
-      description:
-        "Large amount of trash accumulated near the lake. Need volunteers for weekend cleanup.",
-    },
-    {
-      id: 2,
-      images: ["/api/placeholder/600/400"],
-      location: "Beach Drive, Miami",
-      description:
-        "Plastic waste on the beach shore. Marine life at risk. Urgent cleanup needed.",
-    },
-  ];
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setLoading(true);
+      try {
+        const fetchedPosts = await postService.getAllPosts();
+        setPosts(fetchedPosts);
+      } catch (error) {
+        console.error("Error fetching posts:", error);
+        setError("Failed to load posts");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  const handleJoinChat = async (chatId) => {
+    try {
+      if (!user) {
+        // Redirect to login if user is not authenticated
+        navigate("/login");
+        return;
+      }
+
+      // Navigate to the chat page with the chat ID
+      navigate(`/chat/${chatId}`);
+    } catch (error) {
+      console.error("Error joining chat:", error);
+      setError("Failed to join chat room");
+    }
+  };
+
+  if (error) {
+    return alert(error);
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {showProfile ? (
-        <ProfileComponent onClose={() => setShowProfile(false)} />
-      ) : (
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          {dummyPosts.map((post) => (
-            <Post
-              key={post.id}
-              {...post}
-              onChatClick={() => console.log("Chat clicked:", post.id)}
-            />
-          ))}
-        </div>
-      )}
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        {showUpload && <UploadComponent onClose={() => setShowUpload(false)} />}
 
-      {showUpload && <UploadComponent onClose={() => setShowUpload(false)} />}
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Array.isArray(posts) && posts.length > 0 ? (
+              posts.map((post) => (
+                <Post key={post._id} {...post} onJoinChat={handleJoinChat} />
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No posts available.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
